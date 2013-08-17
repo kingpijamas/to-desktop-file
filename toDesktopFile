@@ -1,0 +1,126 @@
+#!/bin/bash
+
+## defaults
+declare -r DEFAULT_ENCODING="UTF-8"
+IS_TERMINAL=false
+STARTUP_NOTIFY=false
+NO_DISPLAY=false
+
+declare -r DEFAULT_HEADER="[Desktop Entry]
+Encoding=$DEFAULT_ENCODING"
+
+## unset-vars
+APP_NAME=""
+COMMENT=""
+COMMAND=""
+EXTRA_TYPES=""
+ICON=""
+CATEGORIES=""
+
+## implementation-specific vars
+declare TARGET_FILE
+#The buffer to which all will be written before writing to disk
+declare BUFFER
+declare -i EXIT_STATUS=1
+
+main() {
+	if ! __parse_args "$@" ; then
+		exit 1
+	fi
+	
+	TARGET_FILE="/tmp/$appName.desktop"
+	
+	__write $DEFAULT_HEADER
+	__write_att_vals "Name $app_name"
+	__write_att_vals "Comment $comment"
+	__write_att_vals "Exec $command %u"
+	__write_att_vals "Terminal $is_terminal"
+	__write_att_vals "Type Application $types"
+	__write_att_vals "Icon $icon"
+	__write_att_vals "Categories Application $categories"
+	__write_att_vals "StartupNotify $startup_notify"
+	__write_att_vals "MimeType $opens_file_formats"
+	__write_att_vals "NoDisplay $no_display"
+	
+	echo "$BUFFER" >> $TARGET_FILE
+	desktop-file-install $TARGET_FILE
+}
+
+usage() {
+	echo "Usage: "basename $0" -f src-file" 1>&2
+}
+
+__parse_args() {
+	if ! __parse_dir "$1" || ! __parse_options "$@" ; then
+		return $EXIT_STATUS
+	fi	
+}
+
+__parse_dir() {
+	APP_NAME=$1
+	if [ ! -d $1 ]; then
+		__print_error "$1 is not a directory"
+		return $EXIT_STATUS
+	fi
+}
+
+__parse_options() {
+	#parsing options
+	while getopts f:c:m:Tt:i:k:s:o:n opt; do
+		case $opt in
+		f)	#Set the app name
+			APP_NAME=$OPTARG;;
+		c)	#Set the comment
+			COMMENT=$OPTARG;;
+		m)	#Set the command to run the application
+			COMMAND=$OPTARG;;
+		T)	#Set the application to show on terminal
+			IS_TERMINAL=true;;
+		t)	#Add extra types for the application
+			EXTRA_TYPES=$OPTARG;;
+		i)	#Set the icon
+			ICON=$OPTARG;;
+		k)	#Set the extra categories for the application
+			EXTRA_CATEGORIES=$OPTARG;;
+		s)	#Set the application to notify on startup
+			STARTUP_NOTIFY=true;;
+		o)	#Set the MimeTypes to be associated with this application
+			MIME_TYPES=$OPTARG;;
+		n)	#Set the application to not display
+			NO_DISPLAY=true;;
+		h)	#Prints the help and exits the application
+			usage && return $EXIT_STATUS;;
+		:)	
+			__print_error "Option -$OPTARG requires an argument."
+			return $EXIT_STATUS;;
+		\?)
+			__print_error "Invalid option: -$OPTARG"
+			return $EXIT_STATUS;;
+	  	esac
+	done
+}
+
+__print_error() {
+	echo "$1" >&2
+	usage
+}
+
+
+__write_att_vals() {
+	#writes the attribute
+	__write "$1="
+	shift
+	
+	#writes the successive semicolon-separated values
+	while [ $# -gt 0 ]
+	do
+		__write "$1;"
+	done
+}
+
+## appends $1 to the buffer
+__write() {
+	BUFFER+="$1"
+}
+
+main "$@"
