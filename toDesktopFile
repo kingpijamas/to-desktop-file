@@ -12,7 +12,7 @@ Encoding=$DEFAULT_ENCODING"
 ## unset-vars
 APP_NAME=""
 COMMENT=""
-COMMAND=""
+INVOKATION_COMMAND=""
 EXTRA_TYPES=""
 ICON=""
 CATEGORIES=""
@@ -47,8 +47,23 @@ main() {
 }
 
 usage() {
-	echo "Usage: "basename $0" -f src-file" 1>&2
+	local text="Usage: "
+	text+=$(basename $0)
+	text+=$(__to_usage_opt_string "f" "app-name")
+	text+=$(__to_usage_opt_string "c" "comment")
+	text+=$(__to_usage_opt_string "m" "invokation-command")
+	text+=$(__to_usage_opt_string "T" "")
+	text+=$(__to_usage_opt_string "t" "extra-types")
+	text+=$(__to_usage_opt_string "i" "path-to-icon")
+	text+=$(__to_usage_opt_string "k" "extra-categories")
+	text+=$(__to_usage_opt_string "S" "")
+	text+=$(__to_usage_opt_string "o" "MIME-types-to-open")
+	text+=$(__to_usage_opt_string "N" "")	
+	text+=$(__to_usage_opt_string "h" "")
+	text+=" [<arg>]"
+	echo "$text" 1>&2
 }
+
 
 __parse_args() {
 	if ! __parse_dir "$1" || ! __parse_options "$@" ; then
@@ -73,7 +88,7 @@ __parse_options() {
 		c)	#Set the comment
 			COMMENT=$OPTARG;;
 		m)	#Set the command to run the application
-			COMMAND=$OPTARG;;
+			INVOKATION_COMMAND=$OPTARG;;
 		T)	#Set the application to show on terminal
 			IS_TERMINAL=true;;
 		t)	#Add extra types for the application
@@ -100,11 +115,20 @@ __parse_options() {
 	done
 }
 
+__to_usage_opt_string() {
+	local opt=$1
+	local arg=$2
+	if [ -z $arg ]; then
+		echo " [-$opt]"
+	else
+		echo " [-$opt <$arg>]"
+	fi
+}
+
 __print_error() {
 	echo "$1" >&2
 	usage
 }
-
 
 __write_att_vals() {
 	#writes the attribute
