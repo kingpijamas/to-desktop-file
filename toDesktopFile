@@ -66,7 +66,7 @@ __parse_dir() {
 
 __parse_options() {
 	#parsing options
-	while getopts f:c:m:Tt:i:k:s:o:n opt; do
+	while getopts f:c:m:t:i:k:o:NTS opt; do
 		case $opt in
 		f)	#Set the app name
 			APP_NAME=$OPTARG;;
@@ -82,11 +82,11 @@ __parse_options() {
 			ICON=$OPTARG;;
 		k)	#Set the extra categories for the application
 			EXTRA_CATEGORIES=$OPTARG;;
-		s)	#Set the application to notify on startup
+		S)	#Set the application to notify on startup
 			STARTUP_NOTIFY=true;;
 		o)	#Set the MimeTypes to be associated with this application
 			MIME_TYPES=$OPTARG;;
-		n)	#Set the application to not display
+		N)	#Set the application to not display
 			NO_DISPLAY=true;;
 		h)	#Prints the help and exits the application
 			usage && return $EXIT_STATUS;;
