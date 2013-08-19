@@ -28,29 +28,29 @@ main() {
 	if ! __parse_args "$@" ; then
 		exit 1
 	fi
-	
+
 	echo "$BASE_DIR"
-	
+
 	TARGET_FILE="/tmp/$APP_NAME.desktop"
-	rm -f $TARGET_FILE
-	
-	__write "$DEFAULT_HEADER"
-	__write_att_val "Name" "$APP_NAME"
-	__write_att_val "Comment" "$COMMENT"
-	__write_defaultable_att_val "Exec" "$APP_NAME %u" "$INVOKATION_COMMAND"  
-	__write_att_val "Terminal" "$IS_TERMINAL"
-	__write_defaultable_att_val "Type" "$TYPE"
-	__write_defaultable_att_val "Icon" "$BASE_DIR/$APP_NAME" "$ICON"
-	__write_att_vals "Categories" "Application" "$EXTRA_CATEGORIES"
-	__write_att_val "StartupNotify" "$STARTUP_NOTIFY"
-	__write_opt_att_vals "MimeType" "$MIME_TYPES"
-	__write_att_val "NoDisplay" "$NO_DISPLAY"
+	rm -f "$TARGET_FILE"
+
+	__append "$DEFAULT_HEADER"
+	__append_att_val "Name" "$APP_NAME"
+	__append_att_val "Comment" "$COMMENT"
+	__append_defaultable_att_val "Exec" "$APP_NAME %u" "$INVOKATION_COMMAND"  
+	__append_att_val "Terminal" "$IS_TERMINAL"
+	__append_defaultable_att_val "Type" "$TYPE"
+	__append_defaultable_att_val "Icon" "$BASE_DIR/$APP_NAME" "$ICON"
+	__append_att_vals "Categories" "Application" "$EXTRA_CATEGORIES"
+	__append_att_val "StartupNotify" "$STARTUP_NOTIFY"
+	__append_optional_att_vals "MimeType" "$MIME_TYPES"
+	__append_att_val "NoDisplay" "$NO_DISPLAY"
 
 	echo -e "$BUFFER"
 	echo -e "$BUFFER" >> $TARGET_FILE
 
 	sudo desktop-file-install $TARGET_FILE
-	#rm $TARGET_FILE
+	rm "$TARGET_FILE"
 }
 
 usage() {
@@ -71,8 +71,9 @@ usage() {
 	echo "$text" 1>&2
 }
 
+## Parses options first, then parses the directory parameter
 __parse_args() {
-	#parsing options
+	# Parsing options
 	while getopts f:c:m:t:i:k:o:NTS opt; do
 		case $opt in
 		f)	#Set the app name
@@ -106,7 +107,8 @@ __parse_args() {
 	  	esac
 	  	shift;shift
 	done
-
+	
+	# Parsing the directories
 	BASE_DIR="$1"; shift
 	if [ ! -d "$BASE_DIR" ]; then
 		__print_error "$BASE_DIR is not a directory"
@@ -124,18 +126,21 @@ __to_usage_opt_string() {
 	fi
 }
 
+## Prints the parameter to std error
 __print_error() {
 	echo "$1" >&2
 	usage
 }
 
-__write_opt_att_vals() {
+## If the values are not nil, it appends the attribute and its values
+__append_optional_att_vals() {
 	if [ $# -gt 1 ] && [ ! -z $2 ]; then
-		__write_att_vals "$@"
+		__append_att_vals "$@"
 	fi
 }
 
-__write_defaultable_att_val() {
+## If the value passed to this function is nil, then it replaces it with a default one.
+__append_defaultable_att_val() {
 	local attribute=$1;shift
 	local default_value=$1;shift
 	local value=$1;shift
@@ -144,41 +149,39 @@ __write_defaultable_att_val() {
 		value="$default_value"
 	fi
 
-	__write_att_val "$attribute" "$value"
+	__append_att_val "$attribute" "$value"
 }
 
-__write_att_val() {
+## Appends an attribute with a single value
+__append_att_val() {
 	local attribute=$1; shift
 	#writes the attribute
-	__write "$attribute="
-	__write_val "$1"
+	__append "$attribute="
+	__append "$1\n"
 }
 
-__write_att_vals() {
+## Appends an attribute with multiple values
+__append_att_vals() {
 	local attribute=$1; shift
 	#writes the attribute
-	__write "$attribute="
-	__write_vals "$@"
+	__append "$attribute="
+	__append_vals "$@"
 }
 
-__write_val(){
-	__write "$1\n"
-}
-
-##writes the successive semicolon-separated values
-__write_vals(){
+## Writes the successive semicolon-separated values
+__append_vals(){
 	while [ $# -gt 0 ]
 	do
 		if [ ! -z "$1" ]; then
-			__write "$1;"
+			__append "$1;"
 		fi
 		shift
 	done
-	__write "\n"
+	__append "\n"
 }
 
-## appends $1 to the buffer
-__write() {
+## Appends the parameter to the buffer
+__append() {
 	BUFFER+="$1"
 }
 
