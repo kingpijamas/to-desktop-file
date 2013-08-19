@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## defaults
+## Application defaults
 declare -r DEFAULT_ENCODING="UTF-8"
 IS_TERMINAL=false
 STARTUP_NOTIFY=false
@@ -8,28 +8,30 @@ NO_DISPLAY=false
 COMMENT="Default auto-generated comment. Please change this in the future."
 TYPE="Application"
 
+## [WARNING] Changing these is not advisable
+declare -a ACCEPTED_INSTALL_DIRECTORIES=( "opt" , "usr/local" , "usr/bin" , "usr/sbin" , "bin" , "sbin")
 declare -r DEFAULT_HEADER="[Desktop Entry]\nEncoding=$DEFAULT_ENCODING\n"
+declare -i EXIT_STATUS=1
 
+## implementation-specific vars
 ## unset-vars
 declare APP_NAME
 declare INVOKATION_COMMAND
 declare ICON
 declare EXTRA_CATEGORIES
 declare MIME_TYPES
-
-## implementation-specific vars
 declare BASE_DIR
 declare TARGET_FILE
+
 #The buffer to which all will be written before writing to disk
 declare BUFFER
-declare -i EXIT_STATUS=1
 
 main() {
 	if ! __parse_args "$@" ; then
-		exit 1
+		exit $EXIT_STATUS
 	fi
 
-	echo "$BASE_DIR"
+	##echo "$BASE_DIR"
 
 	TARGET_FILE="/tmp/$APP_NAME.desktop"
 	rm -f "$TARGET_FILE"
@@ -37,7 +39,7 @@ main() {
 	__append "$DEFAULT_HEADER"
 	__append_att_val "Name" "$APP_NAME"
 	__append_att_val "Comment" "$COMMENT"
-	__append_defaultable_att_val "Exec" "$APP_NAME %u" "$INVOKATION_COMMAND"  
+	__append_defaultable_att_val "Exec" "$BASE_DIR/$APP_NAME %u" "$INVOKATION_COMMAND"  
 	__append_att_val "Terminal" "$IS_TERMINAL"
 	__append_defaultable_att_val "Type" "$TYPE"
 	__append_defaultable_att_val "Icon" "$BASE_DIR/$APP_NAME" "$ICON"
@@ -47,9 +49,9 @@ main() {
 	__append_att_val "NoDisplay" "$NO_DISPLAY"
 
 	echo -e "$BUFFER"
-	echo -e "$BUFFER" >> $TARGET_FILE
+	echo -e "$BUFFER" >> "$TARGET_FILE"
 
-	sudo desktop-file-install $TARGET_FILE
+	sudo desktop-file-install "$TARGET_FILE"
 	rm "$TARGET_FILE"
 }
 
@@ -59,29 +61,36 @@ usage() {
 	text+=$(basename $0)
 	text+=$(__to_usage_opt_string "f" "app-name")
 	text+=$(__to_usage_opt_string "c" "comment")
-	text+=$(__to_usage_opt_string "m" "invokation-command")
-	text+=$(__to_usage_opt_string "T" "")
+	text+=$(__to_usage_opt_string "e" "invokation-command")
+	text+=$(__to_usage_opt_string "T")
 	text+=$(__to_usage_opt_string "t" "type")
 	text+=$(__to_usage_opt_string "i" "path-to-icon")
 	text+=$(__to_usage_opt_string "k" "extra-categories")
-	text+=$(__to_usage_opt_string "S" "")
+	text+=$(__to_usage_opt_string "S")
 	text+=$(__to_usage_opt_string "o" "MIME-types-to-open")
-	text+=$(__to_usage_opt_string "N" "")	
-	text+=$(__to_usage_opt_string "h" "")
+	text+=$(__to_usage_opt_string "N")	
+	text+=$(__to_usage_opt_string "h")
 	text+=" [<arg>]"
 	echo "$text" 1>&2
 }
 
-## Parses options first, then parses the directory parameter
+## Echoes either true or false depending on the arguments validity. It parses options first, then parses the directory parameter. 
 __parse_args() {
+	if ! __parse_options "$@" || ! __parse_dir "${!#}"; then
+		echo false
+	fi
+}
+
+## Echoes either true or false depending on the options' validity (Please note that -h is considered as a failure status by this program, so this function will echo false in that case)
+__parse_options() {
 	# Parsing options
-	while getopts f:c:m:t:i:k:o:NTS opt; do
+	while getopts "NTSf:c:e:t:i:k:o:" opt; do
 		case $opt in
 		f)	#Set the app name
 			APP_NAME=$OPTARG;;
 		c)	#Set the comment
 			COMMENT=$OPTARG;;
-		m)	#Set the command to run the application
+		e)	#Set the command to run the application
 			INVOKATION_COMMAND=$OPTARG;;
 		T)	#Set the application to show on terminal
 			IS_TERMINAL=true;;
@@ -90,7 +99,7 @@ __parse_args() {
 		i)	#Set the icon
 			ICON=$OPTARG;;
 		k)	#Set the extra categories for the application
-			EXTRA_CATEGORIES=$OPTARG;;
+			EXTRA_CATEGORIES=$OPTARG;;			
 		S)	#Set the application to notify on startup
 			STARTUP_NOTIFY=true;;
 		o)	#Set the MimeTypes to be associated with this application
@@ -98,22 +107,30 @@ __parse_args() {
 		N)	#Set the application to not display
 			NO_DISPLAY=true;;
 		h)	#Prints the help and exits the application
-			usage && return $EXIT_STATUS;;
+			usage && echo false;;
 		:)	
 			__print_error "Option -$OPTARG requires an argument."
-			return $EXIT_STATUS;;
+			echo false;;
 		\?)
-			__print_error "Invalid option: -$OPTARG"
-			return $EXIT_STATUS;;
+			__print_error "Unknown option: -$OPTARG"
+			echo false;;
 	  	esac
-	  	shift;shift
 	done
-	
+}
+
+## Echoes true or false depending on the directory's validity
+__parse_dir() {
 	# Parsing the directories
 	BASE_DIR="$1"; shift
 	if [ ! -d "$BASE_DIR" ]; then
-		__print_error "$BASE_DIR is not a directory"
-		return $EXIT_STATUS
+		__print_error "$BASE_DIR is not a directory."
+		echo false
+	elif [[ "$0" = /* ]]; then
+		__print_error "$BASE_DIR is not an absolute path."
+		echo false
+	elif ! __is_valid_path "$BASE_DIR"; then
+		__print_error "$BASE_DIR is not a valid path. (Are you sure you wanted to install it there?)."
+		echo false
 	fi
 }
 
@@ -132,6 +149,17 @@ __to_usage_opt_string() {
 __print_error() {
 	echo "$1" >&2
 	usage
+}
+
+## Checks whether the argument is in one of the ACCEPTED_INSTALL_DIRECTORIES. Echoes false if it is not
+__is_valid_path() {
+	local install_dir=$1
+	for possible_start in "${ACCEPTED_INSTALL_DIRECTORIES[@]}"; do
+		if [[ "$install_dir" = /"$possible_start"/* ]]; then
+			return
+		fi
+	done
+	echo false
 }
 
 ## If the values are not nil, it appends the attribute and its values
