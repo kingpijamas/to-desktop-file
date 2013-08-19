@@ -5,19 +5,20 @@ declare -r DEFAULT_ENCODING="UTF-8"
 IS_TERMINAL=false
 STARTUP_NOTIFY=false
 NO_DISPLAY=false
+COMMENT="Default auto-generated comment. Please change this in the future."
+TYPE="Application"
 
-declare -r DEFAULT_HEADER="[Desktop Entry]
-Encoding=$DEFAULT_ENCODING"
+declare -r DEFAULT_HEADER="[Desktop Entry]\nEncoding=$DEFAULT_ENCODING\n"
 
 ## unset-vars
-APP_NAME=""
-COMMENT=""
-INVOKATION_COMMAND=""
-EXTRA_TYPES=""
-ICON=""
-CATEGORIES=""
+declare APP_NAME
+declare INVOKATION_COMMAND
+declare ICON
+declare EXTRA_CATEGORIES
+declare MIME_TYPES
 
 ## implementation-specific vars
+declare BASE_DIR
 declare TARGET_FILE
 #The buffer to which all will be written before writing to disk
 declare BUFFER
@@ -28,22 +29,28 @@ main() {
 		exit 1
 	fi
 	
-	TARGET_FILE="/tmp/$appName.desktop"
+	echo "$BASE_DIR"
 	
-	__write $DEFAULT_HEADER
-	__write_att_vals "Name $app_name"
-	__write_att_vals "Comment $comment"
-	__write_att_vals "Exec $command %u"
-	__write_att_vals "Terminal $is_terminal"
-	__write_att_vals "Type Application $types"
-	__write_att_vals "Icon $icon"
-	__write_att_vals "Categories Application $categories"
-	__write_att_vals "StartupNotify $startup_notify"
-	__write_att_vals "MimeType $opens_file_formats"
-	__write_att_vals "NoDisplay $no_display"
+	TARGET_FILE="/tmp/$APP_NAME.desktop"
+	rm -f $TARGET_FILE
 	
-	echo "$BUFFER" >> $TARGET_FILE
-	desktop-file-install $TARGET_FILE
+	__write "$DEFAULT_HEADER"
+	__write_att_val "Name" "$APP_NAME"
+	__write_att_val "Comment" "$COMMENT"
+	__write_defaultable_att_val "Exec" "$APP_NAME %u" "$INVOKATION_COMMAND"  
+	__write_att_val "Terminal" "$IS_TERMINAL"
+	__write_defaultable_att_val "Type" "$TYPE"
+	__write_defaultable_att_val "Icon" "$BASE_DIR/$APP_NAME" "$ICON"
+	__write_att_vals "Categories" "Application" "$EXTRA_CATEGORIES"
+	__write_att_val "StartupNotify" "$STARTUP_NOTIFY"
+	__write_opt_att_vals "MimeType" "$MIME_TYPES"
+	__write_att_val "NoDisplay" "$NO_DISPLAY"
+
+	echo -e "$BUFFER"
+	echo -e "$BUFFER" >> $TARGET_FILE
+
+	sudo desktop-file-install $TARGET_FILE
+	#rm $TARGET_FILE
 }
 
 usage() {
@@ -53,7 +60,7 @@ usage() {
 	text+=$(__to_usage_opt_string "c" "comment")
 	text+=$(__to_usage_opt_string "m" "invokation-command")
 	text+=$(__to_usage_opt_string "T" "")
-	text+=$(__to_usage_opt_string "t" "extra-types")
+	text+=$(__to_usage_opt_string "t" "type")
 	text+=$(__to_usage_opt_string "i" "path-to-icon")
 	text+=$(__to_usage_opt_string "k" "extra-categories")
 	text+=$(__to_usage_opt_string "S" "")
@@ -64,22 +71,7 @@ usage() {
 	echo "$text" 1>&2
 }
 
-
 __parse_args() {
-	if ! __parse_dir "$1" || ! __parse_options "$@" ; then
-		return $EXIT_STATUS
-	fi	
-}
-
-__parse_dir() {
-	APP_NAME=$1
-	if [ ! -d $1 ]; then
-		__print_error "$1 is not a directory"
-		return $EXIT_STATUS
-	fi
-}
-
-__parse_options() {
 	#parsing options
 	while getopts f:c:m:t:i:k:o:NTS opt; do
 		case $opt in
@@ -92,7 +84,7 @@ __parse_options() {
 		T)	#Set the application to show on terminal
 			IS_TERMINAL=true;;
 		t)	#Add extra types for the application
-			EXTRA_TYPES=$OPTARG;;
+			TYPE=$OPTARG;;
 		i)	#Set the icon
 			ICON=$OPTARG;;
 		k)	#Set the extra categories for the application
@@ -112,12 +104,19 @@ __parse_options() {
 			__print_error "Invalid option: -$OPTARG"
 			return $EXIT_STATUS;;
 	  	esac
+	  	shift;shift
 	done
+
+	BASE_DIR="$1"; shift
+	if [ ! -d "$BASE_DIR" ]; then
+		__print_error "$BASE_DIR is not a directory"
+		return $EXIT_STATUS
+	fi
 }
 
 __to_usage_opt_string() {
-	local opt=$1
-	local arg=$2
+	local opt=$1;shift
+	local arg=$1;shift
 	if [ -z $arg ]; then
 		echo " [-$opt]"
 	else
@@ -130,16 +129,52 @@ __print_error() {
 	usage
 }
 
-__write_att_vals() {
+__write_opt_att_vals() {
+	if [ $# -gt 1 ] && [ ! -z $2 ]; then
+		__write_att_vals "$@"
+	fi
+}
+
+__write_defaultable_att_val() {
+	local attribute=$1;shift
+	local default_value=$1;shift
+	local value=$1;shift
+
+	if [ -z $value ]; then
+		value="$default_value"
+	fi
+
+	__write_att_val "$attribute" "$value"
+}
+
+__write_att_val() {
+	local attribute=$1; shift
 	#writes the attribute
-	__write "$1="
-	shift
-	
-	#writes the successive semicolon-separated values
+	__write "$attribute="
+	__write_val "$1"
+}
+
+__write_att_vals() {
+	local attribute=$1; shift
+	#writes the attribute
+	__write "$attribute="
+	__write_vals "$@"
+}
+
+__write_val(){
+	__write "$1\n"
+}
+
+##writes the successive semicolon-separated values
+__write_vals(){
 	while [ $# -gt 0 ]
 	do
-		__write "$1;"
+		if [ ! -z "$1" ]; then
+			__write "$1;"
+		fi
+		shift
 	done
+	__write "\n"
 }
 
 ## appends $1 to the buffer
