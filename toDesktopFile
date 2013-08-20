@@ -8,14 +8,14 @@ NO_DISPLAY=false
 COMMENT="Default auto-generated comment. Please change this in the future."
 TYPE="Application"
 
-## [WARNING] Changing these is not advisable
+## implementation-specific vars - Do NOT change these
 declare -a ACCEPTED_INSTALL_DIRECTORIES=( "/opt" , "/usr/local" , "/usr/bin" , "/usr/sbin" , "/bin" , "/sbin")
 declare -r DEFAULT_HEADER="[Desktop Entry]\nEncoding=$DEFAULT_ENCODING\n"
+
 declare -i EXIT_STATUS=1
 declare -i TRUE=0
 declare -i FALSE=1
 
-## implementation-specific vars
 ## unset-vars
 declare APP_NAME
 declare INVOCATION_COMMAND
@@ -74,14 +74,14 @@ usage() {
 	echo "$text" 1>&2
 }
 
-## Echoes either true or false depending on the arguments validity. It parses options first, then parses the directory parameter. 
+## Returns either TRUE or FALSE depending on the arguments validity. It parses options first, then parses the directory parameter. 
 __parse_args() {
 	if ! __parse_options "$@" || ! __parse_dir "${!#}"; then
 		return $FALSE
 	fi
 }
 
-## Echoes either true or false depending on the options' validity (Please note that -h is considered as a failure status by this program, so this function will echo false in that case)
+## Returns either TRUE or FALSE depending on the options' validity (Please note that -h also returns false, since the program should not continue after printing the usage)
 __parse_options() {
 	while getopts "NTShf:c:e:t:i:k:o:" opt; do
 		case $opt in
@@ -117,7 +117,7 @@ __parse_options() {
 	done
 }
 
-## Returns true or false depending on the directory's validity
+## Returns TRUE or FALSE depending on the directory's validity
 __parse_dir() {
 	# Parsing the directories
 	BASE_DIR="$1"; shift
@@ -183,7 +183,6 @@ __append_defaultable_att_val() {
 ## Appends an attribute with a single value
 __append_att_val() {
 	local attribute=$1; shift
-	#writes the attribute
 	__append "$attribute="
 	__append "$1\n"
 }
@@ -191,7 +190,6 @@ __append_att_val() {
 ## Appends an attribute with multiple values
 __append_att_vals() {
 	local attribute=$1; shift
-	#writes the attribute
 	__append "$attribute="
 	__append_vals "$@"
 }
