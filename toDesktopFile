@@ -9,14 +9,16 @@ COMMENT="Default auto-generated comment. Please change this in the future."
 TYPE="Application"
 
 ## [WARNING] Changing these is not advisable
-declare -a ACCEPTED_INSTALL_DIRECTORIES=( "opt" , "usr/local" , "usr/bin" , "usr/sbin" , "bin" , "sbin")
+declare -a ACCEPTED_INSTALL_DIRECTORIES=( "/opt" , "/usr/local" , "/usr/bin" , "/usr/sbin" , "/bin" , "/sbin")
 declare -r DEFAULT_HEADER="[Desktop Entry]\nEncoding=$DEFAULT_ENCODING\n"
 declare -i EXIT_STATUS=1
+declare -i TRUE=0
+declare -i FALSE=1
 
 ## implementation-specific vars
 ## unset-vars
 declare APP_NAME
-declare INVOKATION_COMMAND
+declare INVOCATION_COMMAND
 declare ICON
 declare EXTRA_CATEGORIES
 declare MIME_TYPES
@@ -31,15 +33,13 @@ main() {
 		exit $EXIT_STATUS
 	fi
 
-	##echo "$BASE_DIR"
-
 	TARGET_FILE="/tmp/$APP_NAME.desktop"
 	rm -f "$TARGET_FILE"
 
 	__append "$DEFAULT_HEADER"
 	__append_att_val "Name" "$APP_NAME"
 	__append_att_val "Comment" "$COMMENT"
-	__append_defaultable_att_val "Exec" "$BASE_DIR/$APP_NAME %u" "$INVOKATION_COMMAND"  
+	__append_defaultable_att_val "Exec" "$BASE_DIR/$APP_NAME %u" "$INVOCATION_COMMAND"  
 	__append_att_val "Terminal" "$IS_TERMINAL"
 	__append_defaultable_att_val "Type" "$TYPE"
 	__append_defaultable_att_val "Icon" "$BASE_DIR/$APP_NAME" "$ICON"
@@ -77,21 +77,20 @@ usage() {
 ## Echoes either true or false depending on the arguments validity. It parses options first, then parses the directory parameter. 
 __parse_args() {
 	if ! __parse_options "$@" || ! __parse_dir "${!#}"; then
-		echo false
+		return $FALSE
 	fi
 }
 
 ## Echoes either true or false depending on the options' validity (Please note that -h is considered as a failure status by this program, so this function will echo false in that case)
 __parse_options() {
-	# Parsing options
-	while getopts "NTSf:c:e:t:i:k:o:" opt; do
+	while getopts "NTShf:c:e:t:i:k:o:" opt; do
 		case $opt in
 		f)	#Set the app name
 			APP_NAME=$OPTARG;;
 		c)	#Set the comment
 			COMMENT=$OPTARG;;
 		e)	#Set the command to run the application
-			INVOKATION_COMMAND=$OPTARG;;
+			INVTRUEATION_COMMAND=$OPTARG;;
 		T)	#Set the application to show on terminal
 			IS_TERMINAL=true;;
 		t)	#Add extra types for the application
@@ -107,30 +106,30 @@ __parse_options() {
 		N)	#Set the application to not display
 			NO_DISPLAY=true;;
 		h)	#Prints the help and exits the application
-			usage && echo false;;
+			usage && return $FALSE;;
 		:)	
 			__print_error "Option -$OPTARG requires an argument."
-			echo false;;
+			return $FALSE;;
 		\?)
 			__print_error "Unknown option: -$OPTARG"
-			echo false;;
+			return $FALSE;;
 	  	esac
 	done
 }
 
-## Echoes true or false depending on the directory's validity
+## Returns true or false depending on the directory's validity
 __parse_dir() {
 	# Parsing the directories
 	BASE_DIR="$1"; shift
 	if [ ! -d "$BASE_DIR" ]; then
 		__print_error "$BASE_DIR is not a directory."
-		echo false
+		return $FALSE
 	elif [[ "$0" = /* ]]; then
 		__print_error "$BASE_DIR is not an absolute path."
-		echo false
+		return $FALSE
 	elif ! __is_valid_path "$BASE_DIR"; then
 		__print_error "$BASE_DIR is not a valid path. (Are you sure you wanted to install it there?)."
-		echo false
+		return $FALSE
 	fi
 }
 
@@ -148,18 +147,17 @@ __to_usage_opt_string() {
 ## Prints the parameter to std error
 __print_error() {
 	echo "$1" >&2
-	usage
 }
 
 ## Checks whether the argument is in one of the ACCEPTED_INSTALL_DIRECTORIES. Echoes false if it is not
 __is_valid_path() {
 	local install_dir=$1
 	for possible_start in "${ACCEPTED_INSTALL_DIRECTORIES[@]}"; do
-		if [[ "$install_dir" = /"$possible_start"/* ]]; then
-			return
+		if [[ "$install_dir" = "$possible_start"/* ]]; then			
+			return $TRUE
 		fi
 	done
-	echo false
+	return $FALSE
 }
 
 ## If the values are not nil, it appends the attribute and its values
