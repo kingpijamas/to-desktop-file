@@ -39,7 +39,7 @@ main() {
 	__append "$DEFAULT_HEADER"
 	__append_att_val "Name" "$APP_NAME"
 	__append_att_val "Comment" "$COMMENT"
-	__append_defaultable_att_val "Exec" "$BASE_DIR/$APP_NAME %u" "$INVOCATION_COMMAND"  
+	__append_defaultable_att_val "Exec" "$BASE_DIR/$APP_NAME %u" "$INVOCATION_COMMAND"
 	__append_att_val "Terminal" "$IS_TERMINAL"
 	__append_defaultable_att_val "Type" "$TYPE"
 	__append_defaultable_att_val "Icon" "$BASE_DIR/$APP_NAME" "$ICON"
@@ -83,14 +83,14 @@ __parse_args() {
 
 ## Returns either TRUE or FALSE depending on the options' validity (Please note that -h also returns false, since the program should not continue after printing the usage)
 __parse_options() {
-	while getopts "NTShf:c:e:t:i:k:o:" opt; do
+	while getopts "hLNTSc:e:f:i:k:l:o:t:" opt; do
 		case $opt in
 		f)	#Set the app name
 			APP_NAME=$OPTARG;;
 		c)	#Set the comment
 			COMMENT=$OPTARG;;
 		e)	#Set the command to run the application
-			INVTRUEATION_COMMAND=$OPTARG;;
+			INVOCATION_COMMAND=$OPTARG;;
 		T)	#Set the application to show on terminal
 			IS_TERMINAL=true;;
 		t)	#Add extra types for the application
@@ -98,7 +98,12 @@ __parse_options() {
 		i)	#Set the icon
 			ICON=$OPTARG;;
 		k)	#Set the extra categories for the application
-			EXTRA_CATEGORIES=$OPTARG;;			
+			EXTRA_CATEGORIES=$OPTARG;;
+		L)	#Set the program to also make a symlink in the default location
+			MAKE_SYMLINK=true;;
+		l)	#Set the proram to also make a symlink in $OPTARG
+			MAKE_SYMLINK=true
+			SYMLINK_DIR=$OPTARG;;					
 		S)	#Set the application to notify on startup
 			STARTUP_NOTIFY=true;;
 		o)	#Set the MimeTypes to be associated with this application
@@ -120,7 +125,7 @@ __parse_options() {
 ## Returns TRUE or FALSE depending on the directory's validity
 __parse_dir() {
 	# Parsing the directories
-	BASE_DIR="$1"; shift
+	BASE_DIR=$1; shift
 	if [ ! -d "$BASE_DIR" ]; then
 		__print_error "$BASE_DIR is not a directory."
 		return $FALSE
