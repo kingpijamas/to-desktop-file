@@ -178,7 +178,7 @@ __append_defaultable_att_val() {
 	local default_value=$1;shift
 	local value=$1;shift
 
-	if [ -z $value ]; then
+	if [ -z "$value" ]; then
 		value="$default_value"
 	fi
 
