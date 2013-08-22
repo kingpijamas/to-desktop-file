@@ -8,18 +8,20 @@ NO_DISPLAY=false
 COMMENT="Default auto-generated comment. Please change this in the future."
 TYPE="Application"
 MAKE_SYMLINK=false
+SYMLINK_DIR="/usr/local/bin"
 
-## implementation-specific vars - Do NOT change these
+## Implementation-specific vars
 declare -a ACCEPTED_INSTALL_DIRECTORIES=( "/opt" "/usr/local" "/usr/bin" "/usr/sbin" "/bin" "/sbin" )
-declare -r DEFAULT_HEADER="[Desktop Entry]\nEncoding=$DEFAULT_ENCODING\n"
-# use BRE encoding, for this will be used by sed
+# use BRE escaping here, for these will be used by sed
 declare -a EXEC_CODES=( "\%f" "\%F" "\%u" "\%U" "\%d" "\%D" "\%n" "\%N" "\%i" "\%c" "\%k" "\%v" "\%m" )
 
+declare -r DEFAULT_HEADER="[Desktop Entry]\nEncoding=$DEFAULT_ENCODING\n"
+
+# Do NOT change any of these
 declare -i EXIT_STATUS=1
 declare -i TRUE=0
 declare -i FALSE=1
 
-## unset-vars
 declare APP_NAME
 declare INVOCATION_COMMAND
 declare ICON
@@ -27,10 +29,9 @@ declare EXTRA_CATEGORIES
 declare MIME_TYPES
 declare BASE_DIR
 declare TARGET_FILE
-declare SYMLINK_DIR="/usr/local/bin"
-
-#The buffer to which all will be written before writing to disk
 declare BUFFER
+
+#### MAIN EXECUTION FUNCTIONS
 
 main() {
 	if ! __parse_args "$@" ; then
@@ -38,7 +39,6 @@ main() {
 	fi
 
 	TARGET_FILE="/tmp/$APP_NAME.desktop"
-	rm -f "$TARGET_FILE"
 
 	__append "$DEFAULT_HEADER"
 	__append_att_val "Name" "$APP_NAME"
@@ -48,19 +48,40 @@ main() {
 	__append_att_val "Terminal" "$IS_TERMINAL"
 	__append_att_val "Type" "$TYPE"
 	__append_defaultable_att_val "Icon" "$BASE_DIR/$APP_NAME" "$ICON"
-	__append_att_vals "Categories" "Application" "$EXTRA_CATEGORIES"
+	__append_att_values "Categories" "Application" "$EXTRA_CATEGORIES"
 	__append_att_val "StartupNotify" "$STARTUP_NOTIFY"
-	__append_optional_att_vals "MimeType" "$MIME_TYPES"
+	__append_optional_att_values "MimeType" "$MIME_TYPES"
 	__append_att_val "NoDisplay" "$NO_DISPLAY"
 
-	echo -e "$BUFFER"
+	__print_log
 	echo -e "$BUFFER" >> "$TARGET_FILE"
 
  	sudo desktop-file-install "$TARGET_FILE" && __make_symlink
 	rm "$TARGET_FILE"
 }
 
-## Prints the usage to stderr
+## Creates a symlink in the requested location if MAKE_SYMLINK is true
+__make_symlink() {
+	if $MAKE_SYMLINK; then
+		local prev_dir=$(pwd)
+		cd $SYMLINK_DIR
+		
+		local big_regex=""
+		for regex in "${EXEC_CODES[@]}"; do
+			big_regex+=" -e s/$regex//g"
+		done
+
+		local command=$(echo "$INVOCATION_COMMAND" | sed $big_regex)
+		command=$(echo "$command" | sed 's/[ \t]*$//')
+
+		sudo ln -s "$command" "$APP_NAME"
+		cd "$prev_dir"
+	fi
+}
+
+#### PRINTING FUNCTIONS
+
+## Prints the usage string to stderr
 usage() {
 	local text="Usage: "
 	text+=$(basename $0)
@@ -69,7 +90,7 @@ usage() {
 	text+=$(__to_usage_opt_string "e" "invocation-command")
 	text+=$(__to_usage_opt_string "T")
 	text+=$(__to_usage_opt_string "t" "type")
-	text+=$(__to_usage_opt_string "i" "path-to-icon")
+	text+=$(__to_usage_opt_string "i" "absolute-path-to-icon")
 	text+=$(__to_usage_opt_string "k" "extra-categories")
 	text+=$(__to_usage_opt_string "L")
 	text+=$(__to_usage_opt_string "l" "symlink-location")
@@ -78,17 +99,45 @@ usage() {
 	text+=$(__to_usage_opt_string "N")	
 	text+=$(__to_usage_opt_string "h")
 	text+=" [<arg>]"
-	echo "$text" 1>&2
+	__print_error "$text"
+#	echo "$text" 1>&2
 }
 
-## Returns either TRUE or FALSE depending on the arguments validity. It parses options first, then parses the directory parameter. 
+## Prints a log for the user to see the file they are about to install
+__print_log() {
+	echo -e "File to install: \n\n$BUFFER\n"
+}
+
+## Echoes a String representation for a required parameter's specification
+__to_usage_opt_string() {
+	local opt=$1;shift
+	local arg=$1;shift
+	if [ -z $arg ]; then
+		echo " [-$opt]"
+	else
+		echo " [-$opt <$arg>]"
+	fi
+}
+
+## Prints the parameter to stderr
+__print_error() {
+	echo "$1" 1>&2
+}
+
+#### PARSING FUNCTIONS
+
+## Main parsing function. Returns either TRUE or FALSE depending on the arguments validity.
+#  It parses options first, then parses the directory parameter. 
 __parse_args() {
 	if ! __parse_options "$@" || ! __parse_dir "${!#}"; then
 		return $FALSE
 	fi
+	return $TRUE
 }
 
-## Returns either TRUE or FALSE depending on the options' validity (Please note that -h also returns false, since the program should not continue after printing the usage)
+## Returns either TRUE or FALSE depending on the options' validity
+#  (Please note that -h also returns false, since the program
+#  should not continue after printing the usage)
 __parse_options() {
 	while getopts "hLNTSc:e:f:i:k:l:o:t:" opt; do
 		case $opt in
@@ -119,7 +168,7 @@ __parse_options() {
 			NO_DISPLAY=true;;
 		h)	#Prints the help and exits the application
 			usage && return $FALSE;;
-		:)	
+		:)
 			__print_error "Option -$OPTARG requires an argument."
 			return $FALSE;;
 		\?)
@@ -127,11 +176,11 @@ __parse_options() {
 			return $FALSE;;
 	  	esac
 	done
+	return $TRUE
 }
 
 ## Returns TRUE or FALSE depending on the directory's validity
 __parse_dir() {
-	# Parsing the directories
 	BASE_DIR=$1; shift
 	if [ ! -d "$BASE_DIR" ]; then
 		__print_error "$BASE_DIR is not a directory."
@@ -140,64 +189,51 @@ __parse_dir() {
 		__print_error "$BASE_DIR is not an absolute path."
 		return $FALSE
 	elif ! __is_valid_path "$BASE_DIR"; then
-		__print_error "$BASE_DIR is not a valid path. (Are you sure you wanted to install it there?)."
+		__print_error "$BASE_DIR is not a valid path. (Are you sure you wanted to install '$APP_NAME' there?)."
 		return $FALSE
 	fi
+	return $TRUE
 }
 
-## Returns a nicer String representation for a required parameter's specification
-__to_usage_opt_string() {
-	local opt=$1;shift
-	local arg=$1;shift
-	if [ -z $arg ]; then
-		echo " [-$opt]"
-	else
-		echo " [-$opt <$arg>]"
-	fi
-}
-
-## Prints the parameter to std error
-__print_error() {
-	echo "$1" >&2
-}
-
-## Checks whether the argument is in one of the ACCEPTED_INSTALL_DIRECTORIES. Echoes false if it is not
+## Checks whether the argument is in one of the ACCEPTED_INSTALL_DIRECTORIES.
+#  Echoes false if it is not
 __is_valid_path() {
 	local install_dir=$1
 	for possible_start in "${ACCEPTED_INSTALL_DIRECTORIES[@]}"; do
-		if [[ "$install_dir" = "$possible_start"/* ]]; then			
+		if [[ "$install_dir" = "$possible_start"/* ]]; then
 			return $TRUE
 		fi
 	done
 	return $FALSE
 }
 
-## Creates the symlink in the requested location if MAKE_SYMLINK is true
-__make_symlink() {
-	if $MAKE_SYMLINK; then
-		local prev_dir=$(pwd)
-		cd $SYMLINK_DIR
-		
-		local big_regex=""
-		for regex in "${EXEC_CODES[@]}"; do
-			big_regex+=" -e s/$regex//g"
-		done
-	
-		local command=$(echo "$INVOCATION_COMMAND" | sed $big_regex)
-		echo "sudo ln -s "$command" "$APP_NAME""
-		sudo ln -s "$command" "$APP_NAME"
-		cd "$prev_dir"
+#### BUFFER FUNCTIONS
+
+## Appends an attribute with a SINGLE value to the buffer.
+__append_att_val() {
+	local attribute=$1; shift
+	__append "$attribute="
+	__append "$1\n"
+}
+
+## Appends an attribute with MULTIPLE values
+__append_att_values() {
+	local attribute=$1; shift
+	__append "$attribute="
+	__append_values "$@"
+}
+
+## Appends an attribute and its MULTIPLE values to the buffer IF the 'values' 
+#  (arguments $2 and onwards) are not nil
+__append_optional_att_values() {
+	local first_value=$2
+	if [ $# -gt 1 ] && [ ! -z $first_value ]; then
+		__append_att_values "$@"
 	fi
 }
 
-## If the values are not nil, it appends the attribute and its values
-__append_optional_att_vals() {
-	if [ $# -gt 1 ] && [ ! -z $2 ]; then
-		__append_att_vals "$@"
-	fi
-}
-
-## If the value passed to this function is nil, then it replaces it with a default one. If 'and_echo' is true, it the value it set
+## Appends an attribute and its SINGLE value to the buffer. If 'value' is
+#  nil, then the value to append is considered to be 'default_value'
 __append_defaultable_att_val() {
 	local attribute=$1;shift
 	local default_value=$1;shift
@@ -206,37 +242,10 @@ __append_defaultable_att_val() {
 	value=$(__if_null_get_default_value "$default_value" "$value")
 		
 	__append_att_val "$attribute" "$value"
-
 }
 
-## Self-explanatory. Needed if it is necessary to know the value of the variable
-__if_null_get_default_value() {
-	local default_value=$1;shift
-	local value=$1;shift
-	
-	if [ -z "$value" ]; then
-		value="$default_value"
-	fi
-	
-	echo "$value"
-}
-
-## Appends an attribute with a single value
-__append_att_val() {
-	local attribute=$1; shift
-	__append "$attribute="
-	__append "$1\n"
-}
-
-## Appends an attribute with multiple values
-__append_att_vals() {
-	local attribute=$1; shift
-	__append "$attribute="
-	__append_vals "$@"
-}
-
-## Writes the successive semicolon-separated values
-__append_vals(){
+## Appends multiple values to the buffer
+__append_values(){
 	while [ $# -gt 0 ]
 	do
 		if [ ! -z "$1" ]; then
@@ -250,6 +259,18 @@ __append_vals(){
 ## Appends the parameter to the buffer
 __append() {
 	BUFFER+="$1"
+}
+
+## If 'value' is nil, echoes 'default_value'. Else, it echoes 'value'
+__if_null_get_default_value() {
+	local default_value=$1;shift
+	local value=$1;shift
+	
+	if [ -z "$value" ]; then
+		value="$default_value"
+	fi
+	
+	echo "$value"
 }
 
 main "$@"
