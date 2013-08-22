@@ -185,7 +185,7 @@ __parse_dir() {
 	if [ ! -d "$BASE_DIR" ]; then
 		__print_error "$BASE_DIR is not a directory."
 		return $FALSE
-	elif [[ "$0" = /* ]]; then
+	elif ! __is_absolute_path "$BASE_DIR"]; then
 		__print_error "$BASE_DIR is not an absolute path."
 		return $FALSE
 	elif ! __is_valid_path "$BASE_DIR"; then
@@ -195,8 +195,7 @@ __parse_dir() {
 	return $TRUE
 }
 
-## Checks whether the argument is in one of the ACCEPTED_INSTALL_DIRECTORIES.
-#  Echoes false if it is not
+## Checks whether the argument is in one of the ACCEPTED_INSTALL_DIRECTORIES
 __is_valid_path() {
 	local install_dir=$1
 	for possible_start in "${ACCEPTED_INSTALL_DIRECTORIES[@]}"; do
@@ -204,6 +203,15 @@ __is_valid_path() {
 			return $TRUE
 		fi
 	done
+	return $FALSE
+}
+
+## Checks whather the path is absolute or not
+__is_absolute_path() {
+	local absolute=$(echo $1 | grep -o '^/')
+	if [ ! -z absolute ]; then
+		return $TRUE
+	fi
 	return $FALSE
 }
 
