@@ -1,13 +1,14 @@
 to-desktop-file
 ===============
 
-Bash utility to integrate progams to ubuntu's dash
+Bash utility to integrate progams to ubuntu's dash. It creates a .desktop file based on your specifications and then installs it
 
 NOTES
 	There's still obviously lots more to do, but it is currently very practical when
 	having to deal with your everyday static program.
 
-	For more info on .desktop files, please consult: https://help.ubuntu.com/community/UnityLaunchersAndDesktopFiles
+	For more info on .desktop files, please consult:
+	https://help.ubuntu.com/community/UnityLaunchersAndDesktopFiles
 
 USAGE
 	My typical use would be 
