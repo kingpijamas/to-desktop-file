@@ -98,7 +98,7 @@ usage() {
 	text+=$(__to_usage_opt_string "o" "MIME-types-to-open")
 	text+=$(__to_usage_opt_string "N")	
 	text+=$(__to_usage_opt_string "h")
-	text+=" [<arg>]"
+	text+=" [<absolute-path-to-program-directory>]"
 	__print_error "$text"
 #	echo "$text" 1>&2
 }
