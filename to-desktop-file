@@ -181,7 +181,7 @@ __parse_options() {
 
 ## Returns TRUE or FALSE depending on the directory's validity
 __parse_dir() {
-	BASE_DIR=$1; shift
+	BASE_DIR=$(__remove_trailing_slashes "$1")
 	if [ ! -d "$BASE_DIR" ]; then
 		__print_error "$BASE_DIR is not a directory."
 		return $FALSE
@@ -213,6 +213,14 @@ __is_absolute_path() {
 		return $TRUE
 	fi
 	return $FALSE
+}
+
+## Self-explanatory. Receives a directory name and echoes that name without
+#  trailing slashes
+__remove_trailing_slashes() {
+	local directory="$1"
+	directory=$(echo "$directory" | sed 's/\/*$//g')
+	echo "$directory"
 }
 
 #### BUFFER FUNCTIONS
