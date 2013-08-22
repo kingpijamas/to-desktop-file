@@ -7,10 +7,13 @@ STARTUP_NOTIFY=false
 NO_DISPLAY=false
 COMMENT="Default auto-generated comment. Please change this in the future."
 TYPE="Application"
+MAKE_SYMLINK=false
 
 ## implementation-specific vars - Do NOT change these
-declare -a ACCEPTED_INSTALL_DIRECTORIES=( "/opt" , "/usr/local" , "/usr/bin" , "/usr/sbin" , "/bin" , "/sbin")
+declare -a ACCEPTED_INSTALL_DIRECTORIES=( "/opt" "/usr/local" "/usr/bin" "/usr/sbin" "/bin" "/sbin" )
 declare -r DEFAULT_HEADER="[Desktop Entry]\nEncoding=$DEFAULT_ENCODING\n"
+# use BRE encoding, for this will be used by sed
+declare -a EXEC_CODES=( "\%f" "\%F" "\%u" "\%U" "\%d" "\%D" "\%n" "\%N" "\%i" "\%c" "\%k" "\%v" "\%m" )
 
 declare -i EXIT_STATUS=1
 declare -i TRUE=0
@@ -24,6 +27,7 @@ declare EXTRA_CATEGORIES
 declare MIME_TYPES
 declare BASE_DIR
 declare TARGET_FILE
+declare SYMLINK_DIR="/usr/local/bin"
 
 #The buffer to which all will be written before writing to disk
 declare BUFFER
@@ -39,9 +43,10 @@ main() {
 	__append "$DEFAULT_HEADER"
 	__append_att_val "Name" "$APP_NAME"
 	__append_att_val "Comment" "$COMMENT"
-	__append_defaultable_att_val "Exec" "$BASE_DIR/$APP_NAME %u" "$INVOCATION_COMMAND"
+	INVOCATION_COMMAND=$(__if_null_get_default_value "$BASE_DIR/$APP_NAME %u" "$INVOCATION_COMMAND")
+	__append_att_val "Exec" "$INVOCATION_COMMAND"
 	__append_att_val "Terminal" "$IS_TERMINAL"
-	__append_defaultable_att_val "Type" "$TYPE"
+	__append_att_val "Type" "$TYPE"
 	__append_defaultable_att_val "Icon" "$BASE_DIR/$APP_NAME" "$ICON"
 	__append_att_vals "Categories" "Application" "$EXTRA_CATEGORIES"
 	__append_att_val "StartupNotify" "$STARTUP_NOTIFY"
@@ -51,7 +56,7 @@ main() {
 	echo -e "$BUFFER"
 	echo -e "$BUFFER" >> "$TARGET_FILE"
 
-	sudo desktop-file-install "$TARGET_FILE"
+ 	sudo desktop-file-install "$TARGET_FILE" && __make_symlink
 	rm "$TARGET_FILE"
 }
 
@@ -61,11 +66,13 @@ usage() {
 	text+=$(basename $0)
 	text+=$(__to_usage_opt_string "f" "app-name")
 	text+=$(__to_usage_opt_string "c" "comment")
-	text+=$(__to_usage_opt_string "e" "invokation-command")
+	text+=$(__to_usage_opt_string "e" "invocation-command")
 	text+=$(__to_usage_opt_string "T")
 	text+=$(__to_usage_opt_string "t" "type")
 	text+=$(__to_usage_opt_string "i" "path-to-icon")
 	text+=$(__to_usage_opt_string "k" "extra-categories")
+	text+=$(__to_usage_opt_string "L")
+	text+=$(__to_usage_opt_string "l" "symlink-location")
 	text+=$(__to_usage_opt_string "S")
 	text+=$(__to_usage_opt_string "o" "MIME-types-to-open")
 	text+=$(__to_usage_opt_string "N")	
@@ -165,6 +172,24 @@ __is_valid_path() {
 	return $FALSE
 }
 
+## Creates the symlink in the requested location if MAKE_SYMLINK is true
+__make_symlink() {
+	if $MAKE_SYMLINK; then
+		local prev_dir=$(pwd)
+		cd $SYMLINK_DIR
+		
+		local big_regex=""
+		for regex in "${EXEC_CODES[@]}"; do
+			big_regex+=" -e s/$regex//g"
+		done
+	
+		local command=$(echo "$INVOCATION_COMMAND" | sed $big_regex)
+		echo "sudo ln -s "$command" "$APP_NAME""
+		sudo ln -s "$command" "$APP_NAME"
+		cd "$prev_dir"
+	fi
+}
+
 ## If the values are not nil, it appends the attribute and its values
 __append_optional_att_vals() {
 	if [ $# -gt 1 ] && [ ! -z $2 ]; then
@@ -172,17 +197,28 @@ __append_optional_att_vals() {
 	fi
 }
 
-## If the value passed to this function is nil, then it replaces it with a default one.
+## If the value passed to this function is nil, then it replaces it with a default one. If 'and_echo' is true, it the value it set
 __append_defaultable_att_val() {
 	local attribute=$1;shift
 	local default_value=$1;shift
 	local value=$1;shift
+	
+	value=$(__if_null_get_default_value "$default_value" "$value")
+		
+	__append_att_val "$attribute" "$value"
 
+}
+
+## Self-explanatory. Needed if it is necessary to know the value of the variable
+__if_null_get_default_value() {
+	local default_value=$1;shift
+	local value=$1;shift
+	
 	if [ -z "$value" ]; then
 		value="$default_value"
 	fi
-
-	__append_att_val "$attribute" "$value"
+	
+	echo "$value"
 }
 
 ## Appends an attribute with a single value
